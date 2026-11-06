@@ -1,0 +1,9 @@
+{
+  "appId": "com.abir.kaj",
+  "appName": "Abir’s Task",
+  "webDir": "www",
+  "android": { "backgroundColor": "#fafaf9" },
+  "plugins": {
+    "CapacitorSQLite": { "androidIsEncryption": false }
+  }
+}
