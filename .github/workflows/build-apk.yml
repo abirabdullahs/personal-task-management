@@ -17,6 +17,14 @@ jobs:
       - name: Add permissions (notifications + exact alarms)
         run: |
           sed -i 's#</manifest>#<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><uses-permission android:name="android.permission.USE_EXACT_ALARM"/><uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/></manifest>#' android/app/src/main/AndroidManifest.xml
+      - name: Add home-screen widgets (native code from native/android)
+        run: |
+          JAVA=android/app/src/main/java/com/abir/kaj
+          mkdir -p "$JAVA"
+          cp native/android/java/*.java "$JAVA"/
+          cp -r native/android/res/. android/app/src/main/res/
+          sed -i '/<\/application>/e cat native/android/receivers.xml' android/app/src/main/AndroidManifest.xml
+          grep -c "KajSmallWidget" android/app/src/main/AndroidManifest.xml
       - run: npx cap sync android
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
