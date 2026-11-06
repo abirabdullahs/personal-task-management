@@ -40,6 +40,9 @@ const L={
   saveN:n=>n+'টি কাজ সংরক্ষণ',savedN:n=>n+'টি কাজ সংরক্ষিত',
   shareBackup:'ব্যাকআপ ফাইল সেভ/শেয়ার',restoreFile:'ফাইল থেকে ফেরাও',qPh:'লিখো: রবিবার সকাল ৯:৩০ জিম',qNeedTitle:'কাজের নামও লিখো',bkRemind:'সাপ্তাহিক ব্যাকআপ রিমাইন্ডার',bkRemindSub:'ট্যাপ করলে ব্যাকআপ ফাইল Drive এ সেভ করার স্ক্রিন খুলবে',bkDay:'কোন বার (রাত ৯টায়)',bkTitle:'ব্যাকআপ নাও',bkBody:'ট্যাপ করো, ফাইলটা Google Drive এ সেভ করে রাখো',bkLast:'শেষ ব্যাকআপ',bkNever:'এখনো নেওয়া হয়নি',
   dbNote:'ডেটা ফোনের SQLite ডাটাবেসে আছে। নিরাপদ থাকতে মাঝে মাঝে ব্যাকআপ ফাইল সেভ করে রাখো (Drive/WhatsApp এ)।',webNote:'ব্রাউজার মোড: ডেটা ব্রাউজারে সেভ হচ্ছে।',
+  hello:'হ্যালো',niceDay:'আজকের দিনটা ভালো কাটুক',progress:'অগ্রগতি',running:'চলছে',allDayShort:'সারাদিন',
+  newTask:'নতুন কাজ',editTask:'কাজ এডিট',create:'কাজ তৈরি করো',tasks:'কাজ',
+  nextTask:'পরের কাজ',upcoming:'আসন্ন কাজ',noUpcoming:'কোনো আসন্ন কাজ নেই',dayWord:'দিন',hrWord:'ঘণ্টা',minWord:'মিনিট',
   weekStart:6
  },
  en:{
@@ -80,6 +83,9 @@ const L={
   saveN:n=>'Save '+n+' tasks',savedN:n=>n+' tasks saved',
   shareBackup:'Save/share backup file',restoreFile:'Restore from file',qPh:'Type: sunday 9:30am gym',qNeedTitle:'Add the task name too',bkRemind:'Weekly backup reminder',bkRemindSub:'Tap it to open the share sheet and save the file to Drive',bkDay:'Day (at 9 PM)',bkTitle:'Time to back up',bkBody:'Tap and save the file to Google Drive',bkLast:'Last backup',bkNever:'Never',
   dbNote:'Data lives in the phone’s SQLite database. Save a backup file now and then (Drive/WhatsApp).',webNote:'Browser mode: data is stored in the browser.',
+  hello:'Hello',niceDay:'Have a nice day',progress:'Progress',running:'Now',allDayShort:'All day',
+  newTask:'New Task',editTask:'Edit Task',create:'Create Task',tasks:'Tasks',
+  nextTask:'Next task',upcoming:'Upcoming',noUpcoming:'No upcoming tasks',dayWord:'d',hrWord:'h',minWord:'min',
   weekStart:0
  }
 };
@@ -87,7 +93,7 @@ const CATS={work:'#2f6fd8',family:'#d9623b',personal:'#7c5cc4',study:'#c79a1b',h
 
 /* ================= state ================= */
 const KEY='kaj.v1';
-const defaults={tasks:[],favs:[],settings:{lang:'bn',theme:'auto',remind:120,morning:true,morningTime:'07:30',eveTime:'20:00',lastCat:'work',backupRemind:true,backupDay:5,lastBackup:''}};
+const defaults={tasks:[],favs:[],settings:{name:'Abir',lang:'bn',theme:'auto',remind:120,morning:true,morningTime:'07:30',eveTime:'20:00',lastCat:'work',backupRemind:true,backupDay:5,lastBackup:''}};
 let S;
 function load(){
   try{const r=JSON.parse(localStorage.getItem(KEY));S=r&&r.tasks?r:structuredClone(defaults)}catch(e){S=structuredClone(defaults)}
@@ -95,7 +101,7 @@ function load(){
 }
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}; reschedule();dbSave()}
 const T=()=>L[S.settings.lang];
-const ui={view:'today',calMode:'month',sel:null,month:null,q:'',fcat:'all',fpri:'all'};
+const ui={view:'today',calMode:'week',sel:null,month:null,q:'',fcat:'all',fpri:'all'};
 
 /* ================= helpers ================= */
 const pad=n=>String(n).padStart(2,'0');
@@ -174,6 +180,7 @@ let rsTimer;
 function reschedule(){clearTimeout(rsTimer);rsTimer=setTimeout(doSchedule,300)}
 async function doSchedule(){
   const plan=buildPlan();webPlan=plan.map(p=>Object.assign({fired:false},p));
+  widgetSync();
   const ln=LN();if(!ln)return;
   try{
     const pend=await ln.getPending();
@@ -226,6 +233,25 @@ async function testNotif(){
   toast(T().testSent);
 }
 
+/* ================= home-screen widget (Android) ================= */
+const KW=()=>window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()?Capacitor.Plugins.KajWidget:null;
+function widgetSync(){
+  const kw=KW();if(!kw)return;
+  try{
+    const now=Date.now(),t=T(),today=todayKey(),items=[];
+    for(let i=0;i<=HORIZON&&items.length<12;i++){
+      const ds=addDays(today,i);
+      occ(ds).forEach(o=>{
+        if(o.done||!o.t.start)return;
+        const at=dtms(ds,o.t.start);if(at<=now)return;
+        items.push({title:o.t.title,at,color:catColor(o.t.cat),time:fmtTime(o.t.start),day:i===0?t.today:i===1?t.tomorrow:dayTitle(ds)});
+      });
+    }
+    items.sort((a,b)=>a.at-b.at);
+    kw.update({json:JSON.stringify({bn:S.settings.lang==='bn',label:t.nextTask,listLabel:t.upcoming,empty:t.noUpcoming,d:t.dayWord,h:t.hrWord,m:t.minWord,items:items.slice(0,12)})});
+  }catch(e){console.log('widget sync fail',e)}
+}
+
 /* ================= actions ================= */
 function setDone(id,ds,val){
   const t=S.tasks.find(x=>x.id===id);if(!t)return;
@@ -242,51 +268,62 @@ function takeToday(id,ds){
 /* ================= render ================= */
 const $=s=>document.querySelector(s);
 const ICON={
-  today:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  today:'<svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/></svg>',
+  clip:'<svg viewBox="0 0 24 24"><rect x="6" y="5" width="12" height="15" rx="2"/><path d="M9.5 5V4h5v1M9.5 11h5M9.5 15h5"/></svg>',
   cal:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>',
   search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
   settings:'<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>'
 };
 function renderNav(){
   const t=T();
-  $('#nav').innerHTML=['today','cal','search','settings'].map(v=>`<button class="${ui.view===v?'on':''}" data-act="view" data-v="${v}">${ICON[v]}${t[v]}</button>`).join('');
+  $('#nav').innerHTML=['today','cal','search','settings'].map(v=>`<button class="${ui.view===v?'on':''}" data-act="view" data-v="${v}" aria-label="${t[v]}">${ICON[v]}<i class="nd"></i></button>`).join('');
   $('#fab').style.display=(ui.view==='settings'||ui.view==='today')?'none':'flex';
   $('#qa').style.display=ui.view==='today'?'block':'none';$('#qin').placeholder=t.qPh;
 }
 function rowHTML(o,opt={}){
   const t=o.t,T_=T();
-  const meta=[`<i class="dot" style="background:${catColor(t.cat)}"></i>${T_.cats[t.cat]||''}`];
+  const meta=[`<b class="mt">${t.start?fmtTime(t.start):T_.allDay}</b>`,`<i class="dot" style="background:${catColor(t.cat)}"></i>${T_.cats[t.cat]||''}`];
   if(t.repeat&&t.repeat!=='none')meta.push({daily:T_.rDaily,weekly:T_.rWeekly,monthly:T_.rMonthly}[t.repeat]);
   if(opt.showDate)meta.push(dayTitle(o.ds));
-  const time=t.start?fmtTime(t.start):T_.allDay;
   const cls=['row',o.done?'done':'',isNow(o)?'now':'',isLate(o)?'late':''].join(' ');
   return `<div class="${cls}" data-act="edit" data-id="${t.id}" data-ds="${o.ds}">
-    <div class="tm">${time}</div>
+    <div class="ico">${ICON.clip}</div>
     <div class="mid"><div class="ttl">${esc(t.title)}${t.special?'<span class="star">★</span>':''}${t.prio===2?'<span class="pri">!</span>':''}</div>
     <div class="meta">${meta.join(' · ')}</div>${opt.acts||''}</div>
     <button class="chk" data-act="toggle" data-id="${t.id}" data-ds="${o.ds}" aria-label="done"><span>${o.done?'✓':''}</span></button></div>`;
 }
-function viewToday(){
-  const t=T(),ds=todayKey(),list=occ(ds),d=new Date();
-  const dn=list.filter(o=>o.done).length;
-  let h=`<h1>${dayTitle(ds)}</h1>`;
-  if(list.length){
-    h+=`<div class="sub">${num(dn)} / ${num(list.length)} ${t.done}`;
-    const nx=list.find(o=>!o.done&&o.t.start&&dtms(ds,o.t.start)>Date.now());
-    if(nx){const m=Math.round((dtms(ds,nx.t.start)-Date.now())/60000);
-      h+=` · ${t.next}: ${esc(nx.t.title)} (${num(t.inH(Math.floor(m/60),m%60).trim())})`}
-    h+=`</div><div class="bar"><i style="width:${Math.round(dn/list.length*100)}%"></i></div>`;
+function cardHTML(o){
+  const t=o.t,T_=T(),ds=o.ds,now=Date.now();
+  let left,pct=0,right='';
+  if(!t.start){left=T_.allDayShort}
+  else{
+    const s=dtms(ds,t.start),e=t.end?dtms(ds,t.end):s+60*60000;
+    if(isNow(o)){left=T_.running;pct=Math.max(0,Math.min(100,Math.round((now-s)/(e-s)*100)));right=num(pct)+'%'}
+    else{const m=Math.max(0,Math.round((s-now)/60000));left=num(T_.inH(Math.floor(m/60),m%60).trim());pct=Math.round(Math.max(0,1-m/180)*100)}
   }
+  return `<div class="hcard" data-act="edit" data-id="${t.id}" data-ds="${ds}">
+    <div class="hc-top">${t.start?fmtTime(t.start):T_.allDayShort}</div>
+    <div class="hc-ttl">${esc(t.title)}</div>
+    <div class="hc-bot"><span>${left}</span><span>${right}</span></div>
+    <div class="hc-bar"><i style="width:${pct}%"></i></div></div>`;
+}
+function viewToday(){
+  const t=T(),ds=todayKey(),list=occ(ds),d=new Date(),nowS=Date.now();
+  const dn=list.filter(o=>o.done).length;
+  const nm=(S.settings.name||'').trim();
+  let h=`<div class="hello"><div><h1>${t.hello}${nm?', <b>'+esc(nm)+'</b>':''}!</h1><div class="sub">${t.niceDay} · ${dayTitle(ds)}</div></div>${nm?`<div class="avatar">${esc(nm.charAt(0).toUpperCase())}</div>`:''}</div>`;
+  const up=list.filter(o=>!o.done&&!isLate(o)).sort((a,b)=>(isNow(b)-isNow(a))||(!a.t.start-!b.t.start)||(a.t.start||'').localeCompare(b.t.start||'')).slice(0,6);
+  if(up.length)h+=`<div class="hcards">${up.map(cardHTML).join('')}</div>`;
   const od=overdueList();
   if(od.length){
     h+=`<div class="sec"><span>${t.overdue} (${num(od.length)})</span><button data-act="skipall">${t.skipAll}</button></div><div class="list over">`;
     h+=od.map(o=>rowHTML(o,{showDate:true,acts:`<div class="acts"><button data-act="take" data-id="${o.t.id}" data-ds="${o.ds}">${t.takeToday}</button><button class="mute" data-act="skip" data-id="${o.t.id}" data-ds="${o.ds}">${t.skip}</button></div>`})).join('');
     h+='</div>';
   }
-  h+=`<div class="sec"><span>${t.today}</span></div>`;
+  h+=`<div class="sec"><span>${t.progress}</span>${list.length?`<em>${num(dn)} / ${num(list.length)} ${t.done}</em>`:''}</div>`;
   if(!list.length){h+=`<div class="empty">${t.nothing}</div>`}
   else{
-    h+='<div class="list">';let placed=false;const nowS=Date.now();
+    h+=`<div class="bar"><i style="width:${Math.round(dn/list.length*100)}%"></i></div><div class="list">`;let placed=false;
     list.forEach(o=>{
       if(!placed&&o.t.start&&dtms(ds,o.t.start)>nowS&&!isNow(o)){h+=`<div class="nowline">${fmtTime(pad(d.getHours())+':'+pad(d.getMinutes()))}</div>`;placed=true}
       h+=rowHTML(o);
@@ -308,10 +345,19 @@ function monthGrid(){
   }
   return h+'</div>';
 }
-function dayBlock(ds,compact){
+function dayList(ds,compact){
   const t=T(),list=occ(ds);
-  return `<div class="dayhead"><span>${dayTitle(ds)}</span><button data-act="add" data-ds="${ds}">+ ${t.add}</button></div>`+
-    (list.length?`<div class="list">${list.map(o=>rowHTML(o)).join('')}</div>`:`<div class="empty" style="padding:${compact?8:20}px 0">${t.noTasks}</div>`);
+  return list.length?`<div class="list">${list.map(o=>rowHTML(o)).join('')}</div>`:`<div class="empty" style="padding:${compact?8:20}px 0">${t.noTasks}</div>`;
+}
+function dayBlock(ds,compact){
+  return `<div class="dayhead"><span>${dayTitle(ds)}</span></div>`+dayList(ds,compact);
+}
+function weekStrip(){
+  const t=T(),s=weekStart(ui.sel);
+  return `<div class="strip">`+Array.from({length:7},(_,i)=>{
+    const ds=addDays(s,i),d=pk(ds),has=occ(ds).length;
+    return `<button class="pill ${ds===ui.sel?'sel':''} ${ds===todayKey()?'tod':''}" data-act="pick" data-ds="${ds}"><b>${num(d.getDate())}</b><small>${t.weekdays[d.getDay()]}</small><i class="${has?'has':''}"></i></button>`;
+  }).join('')+`</div>`;
 }
 function viewCal(){
   const t=T();
@@ -320,11 +366,11 @@ function viewCal(){
   let title,h='';
   if(ui.calMode==='month')title=`${t.months[ui.month.m]} ${num(ui.month.y)}`;
   else{const s=weekStart(ui.sel),e=addDays(s,6);title=`${num(pk(s).getDate())} ${t.months[pk(s).getMonth()].slice(0,3)} – ${num(pk(e).getDate())} ${t.months[pk(e).getMonth()].slice(0,3)}`}
-  h+=`<div class="calhead"><div class="seg"><button class="${ui.calMode==='month'?'on':''}" data-act="mode" data-v="month">${t.month}</button><button class="${ui.calMode==='week'?'on':''}" data-act="mode" data-v="week">${t.week}</button></div>
-  <div class="nav"><button data-act="prev">‹</button><button data-act="gotoday" style="width:auto;font-size:13px;padding:0 6px">${t.today}</button><button data-act="next">›</button></div></div>
-  <div style="font-size:18px;font-weight:600;margin-bottom:6px">${title}</div>`;
+  h+=`<div class="calttl"><h1>${title}</h1><button class="addpill" data-act="add" data-ds="${ui.sel}">+ ${t.add}</button></div>
+  <div class="calhead"><div class="seg"><button class="${ui.calMode==='week'?'on':''}" data-act="mode" data-v="week">${t.week}</button><button class="${ui.calMode==='month'?'on':''}" data-act="mode" data-v="month">${t.month}</button></div>
+  <div class="nav"><button data-act="prev">‹</button><button data-act="gotoday" style="width:auto;font-size:13px;padding:0 10px">${t.today}</button><button data-act="next">›</button></div></div>`;
   if(ui.calMode==='month'){h+=monthGrid()+dayBlock(ui.sel)}
-  else{const s=weekStart(ui.sel);for(let i=0;i<7;i++)h+=dayBlock(addDays(s,i),true)}
+  else{h+=weekStrip()+`<div class="sec"><span>${t.tasks} · ${dayTitle(ui.sel)}</span></div>`+dayList(ui.sel)}
   return h;
 }
 function weekStart(ds){const d=pk(ds),off=(d.getDay()-T().weekStart+7)%7;return addDays(ds,-off)}
@@ -493,10 +539,12 @@ function buildSheet(){
   }
   const hint=[draft.special?'★ '+t.specialHint:'',draft.fav?'♥ '+t.favHint:''].filter(Boolean).join('<br>');
   sh.innerHTML=`
+   <div class="shead"><div class="shtop"><button class="sback" data-act="closesheet" aria-label="back">←</button><span>${draft._edit?t.editTask:t.newTask}</span><i></i></div>
    <div class="titlerow"><input class="field" id="f-title" placeholder="${t.titlePh}" value="${esc(draft.title)}" enterkeyhint="done">
      <button class="starbtn ${draft.fav?'on':''}" id="f-fav" aria-label="favorite">${draft.fav?'♥':'♡'}</button>
      <button class="starbtn ${draft.special?'on':''}" id="f-star" aria-label="special">★</button></div>
-   <div class="hint">${hint||t.sheetHint}</div>
+   <div class="hint">${hint||t.sheetHint}</div></div>
+   <div class="sbody">
    ${favRow}
    ${when}
    <div class="chips"><button class="chip" data-act="dur" data-m="30">${t.dur30}</button><button class="chip" data-act="dur" data-m="60">${t.dur1}</button><button class="chip" data-act="dur" data-m="120">${t.dur2}</button><button class="chip" data-act="dur" data-m="0">${t.noTime}</button></div>
@@ -508,8 +556,8 @@ function buildSheet(){
      <div class="lbl">${t.priority}</div>${chips('prio',[[0,t.pLow],[1,t.pNorm],[2,t.pHigh]])}
      <div class="lbl">${t.notes}</div><textarea class="field" id="f-notes" rows="2">${esc(draft.notes||'')}</textarea>
    </details>
-   <button class="save" id="f-save">${draft.slots.length>1?t.saveN(num(draft.slots.length)):t.save}</button>
-   ${draft._edit?`<button class="del" id="f-del">${t.del}</button>`:''}`;
+   <button class="save" id="f-save">${draft.slots.length>1?t.saveN(num(draft.slots.length)):(draft._edit?t.save:t.create)}</button>
+   ${draft._edit?`<button class="del" id="f-del">${t.del}</button>`:''}</div>`;
   sh.scrollTop=sc;
 }
 function closeSheet(fromPop){
@@ -619,6 +667,7 @@ document.addEventListener('click',async ev=>{
   if(b.id==='f-fav'){draft.fav=!draft.fav;buildSheet();return}
   if(b.id==='f-del'){if(confirm(T().confirmDel)){S.tasks=S.tasks.filter(x=>x.id!==draft.id);closeSheet();persist();render();toast(T().deleted)}return}
   switch(a){
+    case 'closesheet':closeSheet();break;
     case 'view':ui.view=v;render();$('#main').scrollTop=0;break;
     case 'toggle':{ev.stopPropagation();const t=S.tasks.find(x=>x.id===id);setDone(id,ds,!(t.done&&t.done[ds]));break}
     case 'edit':if(!ev.target.closest('.chk,.acts'))openSheet(id,ds);break;

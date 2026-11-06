@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kaj_widget_small_name">Next task</string>
+    <string name="kaj_widget_list_name">Upcoming tasks</string>
+    <string name="kaj_widget_small_desc">Next task with a live countdown</string>
+    <string name="kaj_widget_list_desc">Next task countdown and the tasks after it</string>
+</resources>

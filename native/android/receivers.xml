@@ -1,0 +1,13 @@
+        <receiver android:name=".KajSmallWidget" android:exported="false" android:label="@string/kaj_widget_small_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.abir.kaj.WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/kaj_widget_small_info" />
+        </receiver>
+        <receiver android:name=".KajListWidget" android:exported="false" android:label="@string/kaj_widget_list_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/kaj_widget_list_info" />
+        </receiver>
